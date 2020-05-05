@@ -48,7 +48,7 @@ source /opt/ros/melodic/setup.bash
 ```
 
 ## Workspace Creation
-Crate a workspace folder for a ROS project. It's good practice create a new workspace for each new project you want to start.
+Create a workspace folder for a ROS project. It's good practice create a new workspace for each new project you want to start.
 ```
 $ mkdir -p ros_ws/src
 $ cd ros_ws/
@@ -844,9 +844,9 @@ In the launch files is also possible to include the parameter file saved as ```*
 The previous file can be modified to include the ```param.yaml``` file contained in the ```param``` folder:
 ```xml
 <launch>
-	<rosparam command="load" file="$(find test_pkg)/param/param.yaml" />
+    <rosparam command="load" file="$(find test_pkg)/param/param.yaml" />
 
-	<node pkg="test_pkg" type="reader_node.py" name="reader" output="screen">
+    <node pkg="test_pkg" type="reader_node.py" name="reader" output="screen">
         <remap from="data_topic" to="data"/>
     </node>
     <node pkg="test_pkg" type="writer_node.py" name="writer">
