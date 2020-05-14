@@ -432,8 +432,8 @@ In order to realize a simple model of a differential-drive, assume it is compose
       <geometry>
         <box size="0.3 0.2 0.03"/>
       </geometry>
-	  <material name="avana brown">
-	    <color rgba="0.6314 0.4275 0.2157 1"/>
+      <material name="avana brown">
+	<color rgba="0.6314 0.4275 0.2157 1"/>
       </material>
     </visual>
   </link>
@@ -441,7 +441,7 @@ In order to realize a simple model of a differential-drive, assume it is compose
   <joint name="base_joint" type="fixed">
     <parent link="base_footprint"/>
     <child link="base_link" />
-    <origin xyz="0 0 0.03" rpy="0 0 0"/>
+    <origin xyz="0.05 0 0.03" rpy="0 0 0"/>
   </joint>
 
   <link name="right_wheel">
@@ -450,7 +450,7 @@ In order to realize a simple model of a differential-drive, assume it is compose
         <cylinder length="0.02" radius="0.03"/>
       </geometry>
       <material name="black">
-	    <color rgba="0 0 0 1"/>
+	<color rgba="0 0 0 1"/>
       </material>
     </visual>
   </link>
@@ -468,7 +468,7 @@ In order to realize a simple model of a differential-drive, assume it is compose
         <cylinder length="0.02" radius="0.03"/>
       </geometry>
       <material name="black">
-	    <color rgba="0 0 0 1"/>
+	<color rgba="0 0 0 1"/>
       </material>
     </visual>
   </link>
@@ -486,7 +486,7 @@ In order to realize a simple model of a differential-drive, assume it is compose
         <sphere radius="0.015"/>
       </geometry>
       <material name="black">
-	    <color rgba="0 0 0 1"/>
+	<color rgba="0 0 0 1"/>
       </material>
     </visual>
   </link>
@@ -563,8 +563,8 @@ The decription ```*.urdf.xacro``` file become
       <geometry>
         <box size="0.3 0.2 0.03"/>
       </geometry>
-	  <material name="avana brown">
-	    <color rgba="0.6314 0.4275 0.2157 1"/>
+      <material name="avana brown">
+	<color rgba="0.6314 0.4275 0.2157 1"/>
       </material>
     </visual>
     <collision>
@@ -592,7 +592,7 @@ The decription ```*.urdf.xacro``` file become
         <cylinder length="0.02" radius="0.03"/>
       </geometry>
       <material name="black">
-	    <color rgba="0 0 0 1"/>
+	<color rgba="0 0 0 1"/>
       </material>
     </visual>
     <collision>
@@ -621,7 +621,7 @@ The decription ```*.urdf.xacro``` file become
         <cylinder length="0.02" radius="0.03"/>
       </geometry>
       <material name="black">
-	    <color rgba="0 0 0 1"/>
+	<color rgba="0 0 0 1"/>
       </material>
     </visual>
     <collision>
@@ -650,7 +650,7 @@ The decription ```*.urdf.xacro``` file become
         <sphere radius="0.015"/>
       </geometry>
       <material name="black">
-	    <color rgba="0 0 0 1"/>
+	<color rgba="0 0 0 1"/>
       </material>
     </visual>
     <collision>
@@ -775,7 +775,7 @@ For display correctly the robot ```rviz``` require the knowledge of the states o
 ```xml
 <plugin name="joint_state_publisher"
 filename="libgazebo_ros_joint_state_publisher.so">
-<jointName>front_caster_joint, front_wheel_joint</jointName>
+<jointName>caster_wheel_joint</jointName>
 </plugin>
 ```
 and run the ```robot_state_publisher``` node adding it to the ```*.launch``` file
@@ -873,7 +873,7 @@ Next, it's needed to specify that this is a sensor for Gazebo; to perform this u
           <max_angle>1.570796</max_angle>
         </horizontal>
       </scan>
-     <range>
+      <range>
         <min>0.10</min>
         <max>10.0</max>
         <resolution>0.015</resolution>
