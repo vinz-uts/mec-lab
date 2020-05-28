@@ -176,3 +176,239 @@ Move this files in a ```map/``` folder in the package for use it in autonomous n
 You can use the ```gmapping``` package also on your own robot to reconstruct a map of your custom environment.
 
 ![Building a map with own robot](img/smr_map.png)
+
+## Autonomous Navigation
+One of the most basic things that a robot can do is to autonomously move around the world. To do this effectively, the robot needs to know where it is and where it should be going. This is usually acheived by giving the robot a map of the world, a starting location and a goal location.
+
+> #### :scroll: CURIOSITY
+> It's interesting to analyze the etymology of the words _autonomous vehicle_ for indentify the main purpose of a mobile robot.  
+"Vehicle", from Latin _vehicŭlum_, derived from _vehĕre_ "to transport". This word identifies an object that carries something (or itself) from one point of space to another. Hence, it must consist of a locomotion system that allows the object to move.  
+"Autonomous", from Ancient Greek _αὐτόνομος_, that can be translate with the locution "that governs itself". Combined with the previous word, is needed to perform the automation of the movement together with the ability to locate itself within the space, using a set of sensors.
+
+### Localization
+To localize the robot in a map, different algorithms can be used. Turtlebot 3 use the ROS ```amcl``` package that provides a node that implements a set of probabilistic localization algorithms, collectively known as **Adaptive Monte Carlo Localization**. A theoretical explanation of these algorithms can be found in the book _Probabilistic Robotics_ by Sebsastian Thrun, Wolfram Burgard and Dieter Fox, whereas an intuitive explanation of how the algorithm works will be presented below.  
+The ```amcl``` node maintains a set of poses, representing where it thinks the robot might be. Each of these candidate poses has associated with it a probability: higher-probability poses are more likely to be where the robot actually is. When the robot moves
+around the world, the sensor readings are compared to the readings that would be expected for each pose of the set, according to the map. For each candidate pose, if the readings are consistent with the map, then the probability of that pose increases and decreases otherwise. Over time, candidate poses with very low probability are discarded, so the set converge to the actual pose of the robot. As the robot moves around the world, the candidate poses move with it, following the odometry estimates that the robot generates.  
+The AMCL algorithm involve five main phases:
+- **Initialization**: if the robot's initial pose is unknown, the ![N](https://render.githubusercontent.com/render/math?math=N) particles are randomly choosed in the space, each one with a weight of ![\frac{1}{N}](https://render.githubusercontent.com/render/math?math=%5Cfrac%7B1%7D%7BN%7D). If the initial position is known, particles are placed near the robot.
+- **Prediction**: based on the kinematic and dynamic models of the robot, its moves each particle as amount of observed movement with odometry information and noise.
+- **Update**: based on the measured sensor information, the probability of each particle is calculated and the weight value of each particle is updated based on the calculated probability.
+- **Pose estimation**: the position, orientation, and weight of all particles are used to calculate the average weight, median value, and the maximum weight value for estimating pose of the robot.
+- **Resampling**: the step of generating new particles is to remove the less weighed particles and to create new particles that inherit the pose information of the weighted particles. Here, the number of particles must be maintained.
+
+On the Turtlebot is possible to run this localization algorithm running the ```amcl``` node of the same package. In order to launch the simulation and the localization algorithm on the pre-builded map create a launch file (in this example located in the ```turtlebot3_navigation``` package) that contains the following lines:
+```xml
+<launch>
+  <!-- Turtlebot3 Gazebo Simulation-->
+  <include file="$(find turtlebot3_gazebo)/launch/turtlebot3_world.launch"/>
+  <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher"/>
+
+  <!-- Map server -->
+  <node pkg="map_server" name="map_server" type="map_server" args="$(find turtlebot3_navigation)/maps/map.yaml"/>
+
+  <!-- AMCL -->
+  <include file="$(find turtlebot3_navigation)/launch/amcl.launch"/>
+
+  <!-- Rviz -->
+  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find turtlebot3_gazebo)/rviz/turtlebot3_localization.rviz"/>
+</launch>
+```
+First run the simulation environment (using the ```*.launch``` file seen before) and the ```robot_state_publisher```
+```xml
+<!-- Turtlebot3 Gazebo Simulation-->
+<include file="$(find turtlebot3_gazebo)/launch/turtlebot3_world.launch"/>
+<node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher"/>
+  ```
+next load the map builded in the previous section using the ```map_server``` node
+```xml
+<!-- Map server -->
+<node pkg="map_server" name="map_server" type="map_server" args="$(find turtlebot3_navigation)/maps/map.yaml"/>
+```
+At this point, include the ```amcl.launch``` file in the ```turtlebot3_navigation``` package that contains all the parameters for the localization algorithm
+```xml
+<!-- AMCL -->
+<include file="$(find turtlebot3_navigation)/launch/amcl.launch"/>
+```
+Finally, run Rviz with a configuration file that store the visual object for display the main desidered informations (optional, save a previous session of Rviz in the ```rviz``` folder in the ```turtlebot3_gazebo``` package).
+```xml
+<!-- Rviz -->
+<node name="rviz" pkg="rviz" type="rviz" args="-d $(find turtlebot3_gazebo)/rviz/turtlebot3_localization.rviz"/>
+```
+Use the "2D Pose Estimate" button on Rviz for give at the robot a good initial pose estimation, see the overlap between the sensors data and the map.
+
+![Initial pose estimation](img/turtlebot_initial_pose.png)
+
+Launch the ```turtlebot3_teleop.launch``` for move the robot in the environment and see how the _particle filter_ increses its knowdleges and improves its estimation of the pose (the cloud of pose is more compact and near the real pose of the robot).  
+
+![Pose estimation](img/turtlebot_localization.png)
+
+### Navigation
+The purpose of the navigation system, also called **navigation stack** (or _nav stack_) from ROS users, is integrate information from the map, localization system, sensors, and odometry to plan a good path from the current position to the goal position, and then follows it to the best of the robot’s ability, avoiding unmapped obstacles.  
+Next figure illustrates the main relationship between the essential nodes and topics to run the ROS _nav stack_.
+
+![ROS Navigation Stack](img/nav_stack.png)
+
+At a high level, the _navigation stack_ works like this:
+1. A navigation goal is sent to the _nav stack_. This is done using an action call with a goal of type ```MoveBaseGoal```, which specifies a goal pose (position and orientation) in some coordinate frame (commonly the map frame).
+2. The _nav stack_ uses a _path-planning_ algorithm in the global planner to plan the shortest path from the current location to the goal, using the map.
+3. This path is passed to the local planner, which tries to drive the robot along the path. The local planner uses information from the sensors in order to avoid obstacles that appear in front of the robot but that are not in the map. If the local planner gets stuck and cannot make progress, it can ask the global planner to make a new plan and then attempt to follow that.
+4. When the robot gets close to the goal pose, the action terminates and the task are considered done.
+
+Examples of algorithms for path planning are
+- Dijkstra’s algorithm
+- A*
+- Artificial potential field method
+
+Path planning algorithms may be based on graph or occupancy grid or both.  
+Methods that are using occupancy grid divide area into cells (e.g. map pixels) and assign them as occupied or free. One of cells is marked as robot position and another as a destination. Finding the trajectory is based on finding shortest line that do not cross any of occupied cells. This can be done using graph search-based alghoritms, where each edge that connct two cells has assigned a weight representing difficulty of traversing the path (e.g. the nearness from the obstacles).  
+The ```move_base``` node is the main component to perform the autonomous navigation, it creates a _cost map_, that is a grid in which every cell gets assigned value determining distance to obstacle, where higher value means closer distance. With this map, trajectory passing cells with lowest cost is generated. The ```move_base``` node uses two cost maps, local for determining current motion and global for trajectory with longer range. Both cost maps are available on topic: ```/move_base/global_costmap/costmap```, ```/move_base/local_costmap/costmap```, and both have type ```nav_msgs/OccupancyGrid```.
+
+![Example of a costmap](img/costmap.png)
+
+The parameters for build the costmap are stored in ```*.yaml``` files. One to the parameters that will be common to both global and local costmaps, others two to define the parameters for each map.    
+For the TurtleBot 3 Waffle Pi model, the common parameters are defined in the ```costmap_common_params_waffle_pi.yaml``` file:
+
+```
+obstacle_range: 3.0
+raytrace_range: 3.5
+
+footprint: [[-0.205, -0.155], [-0.205, 0.155], [0.077, 0.155], [0.077, -0.155]]
+
+inflation_radius: 1.0
+cost_scaling_factor: 3.0
+
+map_type: costmap
+observation_sources: scan
+scan: {sensor_frame: base_scan, data_type: LaserScan, topic: scan, marking: true, clearing: true}
+```
+An exhaustive explanation of all parameters can be found on http://wiki.ros.org/costmap_2d, next a brief explanation is given: 
+```
+obstacle_range: 3.0
+```
+represent the maximum range in meters at which to insert obstacles into the costmap using sensor data, in this range obstacles will be considered during path planning.
+```
+raytrace_range: 3.5
+```
+This parameter defines range in which area could be considered as free.
+```
+footprint: [[-0.205, -0.155], [-0.205, 0.155], [0.077, 0.155], [0.077, -0.155]]
+```
+Defines the shape of the robot's footprint as a 2D polygon, that will considered during collision detecting.
+```
+inflation_radius: 1.0
+cost_scaling_factor: 3.0
+```
+Are the parameters used for propagating cost values out from occupied cells that decrease with distance.
+```
+map_type: costmap
+```
+Specify a 2D view of the world.
+```
+observation_sources: scan
+scan: {sensor_frame: base_scan, data_type: LaserScan, topic: scan, marking: true, clearing: true}
+```
+Define the type of sensor used to provide data and its properties
+- _sensor_frame_ - coordinate frame tied to sensor
+- _data_type_ - type of message published by sensor
+- _topic_ - name of topic where sensor data is published
+- _marking_ - true if sensor can be used to mark area as occupied
+- _clearing_ - true if sensor can be used to mark area as clear.
+
+To build the _global costmap_ are used the parameters contained in the ```global_costmap_params.yaml```:
+```
+global_costmap:
+  global_frame: map
+  robot_base_frame: base_footprint
+
+  update_frequency: 10.0
+  publish_frequency: 10.0
+  transform_tolerance: 0.5
+
+  static_map: true
+```
+Analyzing the single lines:
+```
+global_frame: map
+robot_base_frame: base_footprint
+```
+this parameter defines coordinate frames tied to occupancy grid map and to the robot.
+```
+update_frequency: 10.0
+publish_frequency: 10.0
+```
+These parameters define how often cost should be recalculated and how often cost map should be published on the topic.
+```
+transform_tolerance: 0.5
+```
+This parameter define the maximum latency in published transforms (in seconds), if the tf tree is not updated at this expected rate, the navigation stack stops the robot.
+```
+static_map: true
+```
+Specify that the map not change in time.  
+The parameter for the _local costmap_ are defined in the ```local_costmap_params.yaml```:
+```
+local_costmap:
+  global_frame: odom
+  robot_base_frame: base_footprint
+
+  update_frequency: 10.0
+  publish_frequency: 10.0
+  transform_tolerance: 0.5  
+
+  static_map: false  
+  rolling_window: true
+  width: 3
+  height: 3
+  resolution: 0.05
+```
+That have the same means of the previous, but different values. In addition are specified 
+```
+rolling_window: true
+```
+to indicate that the local costmap use a small rolling window: the robot always remains at the center of the window, discarding all is outside the local map, whose size is defined by the following parameters
+```
+width: 3
+height: 3
+resolution: 0.05
+```
+In ```move_base_params.yaml``` and ```dwa_local_planner_params_waffle_pi.yaml``` can be found the parameters used by the trajectory planner such as 
+```
+# The velocity when robot is moving in a straight line
+  max_vel_trans:  0.26
+  min_vel_trans:  0.13
+
+  max_vel_theta: 1.82
+  min_vel_theta: 0.9
+
+  acc_lim_x: 2.5
+  acc_lim_y: 0.0
+  acc_lim_theta: 3.2 
+
+# Goal Tolerance Parametes
+  xy_goal_tolerance: 0.05
+  yaw_goal_tolerance: 0.17
+```
+The ```move_base``` node with its parameters can be execute using the ```*.launch``` file in the ```turtlebot3_navigation``` package.
+Modify the initial position in the ```amcl.launch``` file, setting the correct initial position used for spawn the robot's model in Gazebo
+```xml
+<arg name="initial_pose_x" default="-2.0"/>
+<arg name="initial_pose_y" default="-0.5"/> 
+```
+and launch the simulation environment typing
+```
+$ roslaunch tutlebot3_navigation turtlebot3_localization.launch
+```
+then launch ```move_base``` typing in a new terminal
+```
+$ roslaunch tutlebot3_navigation move_base.launch
+```
+On Rviz, using the "Add" button, add in the view a _Map_ for display the _local costmap_, a _Pose_ to visualize the current target point published on the ```/move_base_simple/goal```, and a _Path_ object to display the desidered trajectory computed by the global planner.
+
+![Starting autonomous navigation](img/move_base_01.png)
+
+Using the "2D Nav Goal" button in Rviz, publish a goal for the robot and see the computed path. During the simulation you can publish a new goal in each moment, deleting the previous target. See how the localization improve during the movement.
+
+![Autonomous navigation](img/move_base_02.png)
+
+> #### :warning: COMMANDS CONFLICT
+> If you want to improve the localization estimation, before start the autonomous navigation, you can teleoperate the robot around the world. Before switch in autonomous mode, be sure that the ```turtlebot3_teleop_key``` node are shutdown to avoid conflict between the velocities commands sent on the ```/cmd_vel``` topic.
