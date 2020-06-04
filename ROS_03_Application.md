@@ -697,6 +697,8 @@ and publish on a new topic ```camera/rgb/object_detect``` the camera images with
 self.detect_pub = rospy.Publisher('camera/rgb/object_detect', Image, queue_size=1)
 ```
 The life cycle of the node just await that images are published on the ```camera/rgb/image_raw``` topic, then process each frame to discovery some knowed object.  
+![Detection process](img/blob_from_images_header.png)
+
 The process of detection requires that each frame are preprocessed (transform the frame in a _blob_) before pass it through the network. The main operation is compute the average pixel intensity across all images in the training set for each of the Red, Green, and Blue channels, then subtract these to each frame. Mean subtraction is used to help combat illumination changes in the input images in our dataset. Then scale the image of a desidered factor, swap the red and blue channel (fix differences between RGB and BGR format) and resize the image in a fixed format (300x300):
 ```python
 blob = cv2.dnn.blobFromImage(cv2.resize(image, (300, 300)), 0.007843, (300, 300), 127.5)
