@@ -2,7 +2,7 @@
 
 Questa guida fornisce una veloce panoramica a quelli che sono gli aspetti sintattici e le funzionalità principali del linguaggio di programazzione **Python 3**.
 Python è un linguaggio di programmazione ad _alto livello_ che fa della leggibilità e della semplicità il suo punto di forza principale.  
-Python è caratterizzato da una sintassi snella e molto vicino al linguaggio umano, il che ne aumenta notavolmente la leggibilità e la comprensibilità da parte degli utenti programmatori; ad ultriore supporto alla leggibilità vi è l'obbligo di indententazione per separare i blocchi funzionali di codice  anziché le classiche parentesi.
+Python è caratterizzato da una sintassi snella e molto vicino al linguaggio umano, il che ne aumenta notavolmente la leggibilità e la comprensibilità da parte degli utenti programmatori; ad ultriore supporto alla leggibilità vi è l'obbligo di indentazione per separare i blocchi funzionali di codice  anziché le classiche parentesi.
 Python è estremamente versatile, può essere usato e come linguaggio convenzionale e come linguaggio di scripting, supportando inoltre il paradigma di programmazione a oggetti esportando i principali costrutti delle classi e le funzionalità di ereditarietà multipla fra classi.  
 Altro punto di forza di python è la vasta gamma di librerie standard messe a disposizione che permettono una veloce e facile interazione con le principali funzionalità esportate dal sistema operativo, connessioni di rete, programmazione multi-thread e quant'altro. Sono inoltre disponibili un'enorme varietà di librerie aggiuntive che possono essere scaricate e importate in maniera semplicissima, messe a disposizione nel [repository ufficiale](https://pypi.org) di librerie software di terze parti per python.  
 Sebbene Python venga considerato un linguaggio **interpretato**, in realtà il codice sorgente non viene convertito direttamente in linguaggio macchina ma viene prima sottoposto a una fase di pre-compilazione in _bytecode_ (è un linguaggio intermedio - più astratto - tra il linguaggio macchina e il linguaggio di programmazione, usato per descrivere le operazioni che costituiscono un programma), che viene successivamente interpretato un comando per volta, traducendo ed eseguendo ogni singola istruzione del programma. Si può dunque dire che il  codice sorgente del programma viene eseguito senza la necessità di creare un file oggetto eseguibile. L'esecuzione è più lenta rispetto a un codice compilato, tuttavia il bytecode è quasi sempre riutilizzato dopo la prima esecuzione del programma, evitando così di reinterpretare ogni volta il sorgente e migliorando le prestazioni. Inoltre è possibile distribuire programmi Python direttamente in bytecode (file `.pyc`), saltando totalmente la fase di interpretazione da parte dell'utilizzatore finale e ottenendo programmi Python a sorgente chiuso.  
@@ -103,7 +103,7 @@ Gli operatori elementari da usare fra variabili sono quelli classici di quasi tu
 - **Appartenenza**: `in  ,  not in`
 - **Uguaglianza**: `is  ,  is not`
 
-Alcune funzioni  utili messe a disposizione dalla libreria base di python sono le funzioni di conversione di tipo (_casting_), per trasformare le variabili da un tipo all'altro (qualora il passaggio sia compatibile): ` int(), float(), complex(), str(), bool()`, o alcune funzioni matematiche di base: `abs(), pow(), ceil(), floor(), round()`.
+Alcune funzioni  utili messe a disposizione dalla libreria base di python sono le funzioni di conversione di tipo (_casting_), per trasformare le variabili da un tipo all'altro (qualora il passaggio sia compatibile): ` int(), float(), complex(), str(), bool()`, o alcune funzioni matematiche di base: `abs(), pow(), round()`.
 
 > :pencil: Tramite l'interprete interattivo è possibile verificare i concetti di tipizzazione dinamica forte delle variabili
 > ```python
@@ -655,3 +655,103 @@ La visualizzazione dei dati può essere effettuata senza troppo sforzo da parte 
 > <p align="center">
 > <img width=100% src="img/matplotlib.png">
 > </p>
+
+
+> ## :pencil: Filtraggio Digitale
+> Si supponga di voler realizzare una libreria che metta a disposizione delle funzioni di utilità che permettano di filtrare digitalmente un segnale di misura che potrebbe essere acquisito ad esempio da un sensore. Ovviamente, quando si parla di sistemi meccatronici bisogna pensare che le tecniche che si vogliono realizzare devono agire in tempo reale, non in post processamento; inoltre non si vuole fare ricorso a software di terze parti che permettano di eseguire le operazioni attraverso comode interfacce grafiche, è necessario che le operazioni iano gestite in modo automatizzato e che i risultati siano così fruibili dalle altre componenti del sistema.  
+> Tra le tecniche di filtraggio più comuni vi è l'uso di filtri con _risposta all'impulso finita_ (FIR). Lungi dal voler entrare nel dettaglio della teoria del filtraggio, una delle tecniche più semplici per la riduzione di un rumore di misura prevede di utilizzare un **filtro digitale a media mobile**. Formalmente tale filtro può essere espresso nel seguente modo:  
+> <center> <a href="https://www.codecogs.com/eqnedit.php?latex=y(t)=\frac{1}{N}\sum_{k=0}^{N-1}x(t-k)" target="_blank"><img src="https://latex.codecogs.com/gif.latex?y(t)=\frac{1}{N}\sum_{k=0}^{N-1}x(t-k)" title="y(t)=\frac{1}{N}\sum_{k=0}^{N-1}x(t-k))" /></a> </center>
+>  
+> dove `x(t)` rappresenta il segnale di misura, `y(t)` il segnale filtrato e `N` è la dimensione del filtro. L'implementazione in Python di tale filtro può essere realizzata in maniera quasi immediata, all'interno del file `filter.py` si può inserire il seguente codice:
+> ```python
+> def ma_fir(x):
+>     N = len(x)
+>     s = 0
+>     for k in range(N):
+>         s += x[k]
+>     return round(s/N,2)
+> ```
+> > :mag: In realtà, grazie alle funzioni messe a disposizione dalla libreria standard di Python, si potrebbe scrivere l'intera funzione in una sola riga di codice: `return round(sum(x)/len(x),2)`.
+>
+> Una generalizzazione del filtro precedente porta alla definizione del **filtro a media mobile pesata**. Tale tecnica prevede di effettuare una combinazione convessa dei valori presenti nel buffer dando pesi diversi in funzione della posizione temporale degli elementi (in genere, una scelta logica, prevede di assegnare un peso maggiore a misure più recenti). Matematicamente, il filtro a media pesata può essere definito nel seguente modo:
+> <center> <a href="https://www.codecogs.com/eqnedit.php?latex=y(t)=\sum_{k=0}^{N-1}w_k\cdot&space;x(t-k)&space;\qquad&space;\sum_{k=0}^{N-1}w_k=1&space;\quad&space;w_k\geq&space;0" target="_blank"><img src="https://latex.codecogs.com/gif.latex?y(t)=\sum_{k=0}^{N-1}w_k\cdot&space;x(t-k)&space;\qquad&space;\sum_{k=0}^{N-1}w_k=1&space;\quad&space;w_k\geq&space;0" title="y(t)=\sum_{k=0}^{N-1}w_k\cdot x(t-k) \qquad \sum_{k=0}^{N-1}w_k=1 \quad w_k\geq 0" /></a> </center>
+> 
+> È possibile notare come basti scegliere <a href="https://www.codecogs.com/eqnedit.php?latex=\inline&space;w_k&space;=&space;\frac{1}{N}&space;\quad&space;\forall&space;k" target="_blank"><img src="https://latex.codecogs.com/gif.latex?\inline&space;w_k&space;=&space;\frac{1}{N}&space;\quad&space;\forall&space;k" title="w_k = \frac{1}{N} \quad \forall k" /></a> (peso uguale a tutti i campioni) per ricondursi allo scenario precedente del filtro a media mobile.  
+> Un'implementazione del filtro a media mobile pesata può essere aggiunta nel file `filter.py`:
+> ```python
+> def wma_fir(x,w):
+>     N = len(x)
+>     s = 0
+>     for k in range(N):
+>         s += w[k]*x[k]
+>     return round(s,2)
+> ```
+> Non disponendo di un sensore che fornisca dei dati in tempo reale, è possibile simularne il comportamento grazie alla libreria `numpy' di pypi. Un segnale reale è intrinsecamente formato dal segnale utile e da un rumore che può essere dato dallo strumento di misura stesso o da altri fattori di disturbo. È frequente, nell'ingegneria, modellare tali senali di disturbo con **rumori gaussiani** che hanno come funzione di densità di probabilità delle _distribuzioni normali_
+> <center> <a href="https://www.codecogs.com/eqnedit.php?latex=p(x)&space;=&space;\frac{1}{\sqrt{2\pi\sigma^2}}e^{-\frac{(x-\mu)^2}{2\sigma^2}}" target="_blank"><img src="https://latex.codecogs.com/gif.latex?p(x)&space;=&space;\frac{1}{\sqrt{2\pi\sigma^2}}e^{-\frac{(x-\mu)^2}{2\sigma^2}}" title="p(x) = \frac{1}{\sqrt{2\pi\sigma^2}}e^{-\frac{(x-\mu)^2}{2\sigma^2}}" /></a> </center>
+> 
+> Grazie alla libreria `numpy` è possibile generare facilmente una sequenza di numeri pseuocasuali che rappresentino un _rumore bianco campionato_. Utilizzando l'interprete interattivo è possibile provare a costuire delle sequenze di numeri random che rispettano una distribuzione normale con media `mu` e deviazione standard `sigma`:
+> ```python
+> >>> import numpy as np
+> >>> mu, sigma = 0, 0.1
+> >>> noise = np.random.normal(mu, sigma, 1000)
+> ```
+> È posibile verificare come all'aumentare del numero di campioni generati, la probabilità di generare all'interno della sequenza un numero più lontano dalle code aumenti per la _legge dei grandi numeri_. Usando la funzione built-in di Python `max` è possibile verificare istantaneamente qual'è il numero generato più lontano.
+> <p align="center">
+> <img width=100% src="img/white_noise.png">
+> </p>
+> 
+> | Numero di campioni | Massimo generato   |
+> | ------------------ | ------------------ |
+> | 1,000              | 0.3291792197641081 |
+> | 10,000             | 0.3775182107150272 |
+> | 100,000            | 0.4390371470091182 |
+> | 1,000,000          | 0.5267381115616180 |
+> | 10,000,000         | 0.5344882578566871 |
+> | 100,000,000        | 0.5705869263244009 |
+> 
+> Si supponga che il segnale proveniente dal sensore sia una sinusoide di 5 V picco-picco, affetta da un rumore di misura del 3%. Il segnale sinusoidale può essere costruito sempre con l'ausilio della libreria `numpy` a cui si aggiunge un rumore bianco costruito come già visto. Successivamente è possibile, attraverso un file `main_filtering.py`, simulare la ricezione delle misure e il filtraggio del segnale in tempo reale con le due tecniche implementate.
+> ```python
+> import numpy as np
+> import matplotlib.pyplot as plt
+> from filter import *
+> 
+> if __name__ == '__main__':
+>     T = 10000                     # number of samples
+>     Vpp = 5                       # peak-to-peak voltage
+>     noise_perc = 0.03             # noise percentage
+>     mu, sigma = 0, noise_perc*Vpp # mean and standard deviation
+>     noise = np.random.normal(mu, sigma, T)
+>     
+>     th = np.linspace(0, 4*np.pi, T)
+>     signal = (Vpp/2)*np.sin(th)
+>     real_signal = signal + noise
+>     
+>     N = 10 # buffer size
+>     w = [0.01,0.01,0.02,0.03,0.05,0.08,0.13,0.17,0.21,0.29]
+> 
+>     x = [0.0]*N # measurement buffer
+>     y_ma = [] # mobile average filtered measure
+>     y_wma = [] # weighted mobile average filtered measure
+> 
+>     t = 0 # time
+>     while t < len(real_signal):
+>         if len(x) >= N:
+>             x.pop(0)
+>         x.append(real_signal[t])
+>         y_ma.append(ma_fir(x))
+>         y_wma.append(wma_fir(x,w))
+>         t += 1
+>     
+>     plt.figure()
+>     plt.subplot(211)
+>     plt.plot(real_signal)
+>     plt.plot(y_ma)
+>     plt.subplot(212)
+>     plt.plot(real_signal)
+>     plt.plot(y_wma)
+>     plt.show()
+> ```
+> <p align="center">
+> <img width=100% src="img/filtered_signal.png">
+> </p>
+
