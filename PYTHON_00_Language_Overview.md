@@ -4,7 +4,7 @@ Questa guida fornisce una veloce panoramica a quelli che sono gli aspetti sintat
 Python è un linguaggio di programmazione ad _alto livello_ che fa della leggibilità e della semplicità il suo punto di forza principale.  
 Python è caratterizzato da una sintassi snella e molto vicino al linguaggio umano, il che ne aumenta notavolmente la leggibilità e la comprensibilità da parte degli utenti programmatori; ad ultriore supporto alla leggibilità vi è l'obbligo di indentazione per separare i blocchi funzionali di codice  anziché le classiche parentesi.
 Python è estremamente versatile, può essere usato e come linguaggio convenzionale e come linguaggio di scripting, supportando inoltre il paradigma di programmazione a oggetti esportando i principali costrutti delle classi e le funzionalità di ereditarietà multipla fra classi.  
-Altro punto di forza di python è la vasta gamma di librerie standard messe a disposizione che permettono una veloce e facile interazione con le principali funzionalità esportate dal sistema operativo, connessioni di rete, programmazione multi-thread e quant'altro. Sono inoltre disponibili un'enorme varietà di librerie aggiuntive che possono essere scaricate e importate in maniera semplicissima, messe a disposizione nel [repository ufficiale](https://pypi.org) di librerie software di terze parti per python.  
+Altro punto di forza di Python è la vasta gamma di librerie standard messe a disposizione che permettono una veloce e facile interazione con le principali funzionalità esportate dal sistema operativo, connessioni di rete, programmazione multi-thread e quant'altro. Sono inoltre disponibili un'enorme varietà di librerie aggiuntive che possono essere scaricate e importate in maniera semplicissima, messe a disposizione nel [repository ufficiale](https://pypi.org) di librerie software di terze parti per Python.  
 Sebbene Python venga considerato un linguaggio **interpretato**, in realtà il codice sorgente non viene convertito direttamente in linguaggio macchina ma viene prima sottoposto a una fase di pre-compilazione in _bytecode_ (è un linguaggio intermedio - più astratto - tra il linguaggio macchina e il linguaggio di programmazione, usato per descrivere le operazioni che costituiscono un programma), che viene successivamente interpretato un comando per volta, traducendo ed eseguendo ogni singola istruzione del programma. Si può dunque dire che il  codice sorgente del programma viene eseguito senza la necessità di creare un file oggetto eseguibile. L'esecuzione è più lenta rispetto a un codice compilato, tuttavia il bytecode è quasi sempre riutilizzato dopo la prima esecuzione del programma, evitando così di reinterpretare ogni volta il sorgente e migliorando le prestazioni. Inoltre è possibile distribuire programmi Python direttamente in bytecode (file `.pyc`), saltando totalmente la fase di interpretazione da parte dell'utilizzatore finale e ottenendo programmi Python a sorgente chiuso.  
 Ciò garantisce anche una più facile redistribuzione multi-piattaforma del codice, il quale può essere eseguito da un qualsiasi sistema (GNU/Linux, Windows, Mac OS, Android) che abbia installata una versione dell'interprete Python.  
 ## Interprete ed esecuzione
@@ -159,7 +159,7 @@ for i in range(10):                # for i=0:9
 for i in range(2,10):              # for i=2:9
     operation on the index
     
-for i in range(1,10,2):            # for i=1:2:10
+for i in range(1,10,2):            # for i=1:2:9
     operation on the index
     
 for e in l:
@@ -187,7 +187,7 @@ finally:
 ```
 
 ## Sintassi - Strutture Dati
-In python sono presenti diverse strutture base per l'organizzazione dei dati. 
+In Python sono presenti diverse strutture base per l'organizzazione dei dati. 
 ### Liste
 Le liste sono delle strutture di dati molto simili agli array, ma con profonde differenze. Le liste rappresentano una collezione ordinata (dal punto di vista posizionale), mutabile, di elementi eterogenei. Non è dunque necessario che gli elementi all'interno di una lista siano tutti di uno stesso tipo, è possibile accedere agli elementi facendo ricorso a parentesi quadre (`[` `]`) contenti l'indice dell'elemento a cui si vuole accedere; l'indicizzazione degli elementi parte dal valore 0. La differenza principale con gli array comunemente presenti negli altri linguaggi di programmazione è data dalla proprietà delle liste di essere oggetti mutabili, ovvero che possono variare la loro dimensione dinamicamente e risiedono perciò nella parte di memoria denominata _heap_. Python è dotato di un meccanismo di **garbage collection**, non è quindi richiesta la liberazione manuale dei blocchi di memoria utilizzati come accade ad esempio in C dove è prudente l'utilizzo della funzione `free` in seguito alla dismissione di alcune variabili.
 
@@ -238,6 +238,15 @@ Altro metodo utile, appartenente alla libreria standard di Python è il metodo `
 > |  i = 2      | l[2] = 3  | l=[1,2,3,3,6] --> [1,2,3,6] |
 > |  i = 3      | l[3] = 6  | l=[1,2,3,6]    |
 > |  i = 4      | l[4] = ?  | `IndexError`  |
+> 
+> Un algoritmo per la rimozione da una lista di tutti gli elementi con un certo valore può essere implementato evitando di utilizzare gli indici come mostrato di seguito:
+> ```python
+> l = [1,2,3,3,6]
+> while 3 in l:
+>     l.remove(3)
+> print(l)
+> # [1,2,6]
+> ```
 
 La presenza nativa di strutture come le liste, permette di realizzare in maniera semplice strutture di immagazzinamento spesso utilizzate durante la stesura di algoritmi di uso comune come le **code** o uno _stack_.
 
@@ -408,7 +417,7 @@ Python permette inoltre di specificare dei parametri opzionali nelle funzioni: i
 ## Librerie e Moduli Esterni
 Un altro aspetto che ha reso Python uno dei linguaggi più utilizzati al giorno d'oggi è la vasta collezione di librerie e moduli messi a disposizione dalla libreria standard di Python, oltre alle librerie di terze parti messe a disposizione dalla vasta community di utilizzatori.
 Librerie e moduli sono insiemi di funzioni, costanti o classi, definite in un file esterno, che possono essere incluse all'interno di uno script per permetterne l'utilizzo. L'inclusione delle librerie viene fatto attraverso la parola chiave `import` per importare tutte le entità del modulo, o, sfruttando prima la parola chiave `from`, si selezionano solo alcune funzionalità.  
-La lista delle librerie standard di Python può essere consultata al seguente [link](https://docs.python.org/3/py-modindex.html). Tali librerie sono installate in automatico nelle cartelle di sistema quando si installa l'interprete Pythpn, di seguito se ne riportano alcune tra le più usate a titolo d'esempio:
+La lista delle librerie standard di Python può essere consultata al seguente [link](https://docs.python.org/3/py-modindex.html). Tali librerie sono installate in automatico nelle cartelle di sistema quando si installa l'interprete Python, di seguito se ne riportano alcune tra le più usate a titolo d'esempio:
 - `math`: contiene una larga varietà di funzioni matematiche come: `sqrt`,`log`,`sin`,`cos`.
 - `decimal`: supporta delle funzioni per garantire la correttezza di operazioni aritmetiche con numeri a _virgola mobile_.
 - `random`: libreria per la generazione di numeri e sequenze casuali.
