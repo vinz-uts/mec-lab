@@ -562,9 +562,9 @@ A titolo d'esempio è riportata l'implementazione di una semplice azione per mod
 # Timer.action
 float32 duration_time # goal
 ---
-time total_time_elapsed # result
+float32 total_time_elapsed # result
 ---
-time partial_time_elapsed # feedback 
+float32 partial_time_elapsed # feedback 
 ```
 Prima di compilare attraverso il comando `catkin_make` è necessario modificare il file `package.xml` aggiungendo le linee
 ```xml
