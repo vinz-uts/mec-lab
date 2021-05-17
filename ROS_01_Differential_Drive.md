@@ -397,3 +397,539 @@ if __name__ == '__main__':
   t = Teleop()
   t.loop()
 ```
+
+
+## Modellazione Fisica
+Nella sezione corrente verrà descritto come modellare dal punto di vista fisico un robot. In ROS vengono utilizzati appositi file di descrittivi in formato _XML_, per fornire una modellazione delle varie parti che costituiscono il robot; tali file prendono il nome di **Unified Robot Description Format** (**URDF**). In tali file è possibile fornire una descrizione di:
+- modelli cinematici e dinamici delle componenti del robot;
+- rapresentazione grafica delle componenti;
+- modelli di collisione del robot per interazioni con l'ambiente esterno.
+
+I robot vengono modellati attraverso un insieme di elementi detti **link**, ed elementi di tipo  **joint** per modellare le connessioni tra i diversi corpi. Un _link_ è un corpo rigido, come un telaio o una ruota; gli elementi _joint_ connettono 2 link definendo come questi si possono muovere l'uno rispetto a l'altro. Per ogni link vengono specificate proprietà di tipo grafico (attraverso il tag `<visual>`), proprietà di natura geometrica (tag `<geometry>`) come la forma del corpo, o proprietà riguardo al materiale/colore di costituzione del corpo (`<material>`). Oltre a tali informazioni viene definito per ogni link un sistema di riferimento ad esso solidale, la cui origine sarà il punto di riferimento per quel corpo. Per gli elementi di tipo _joint_ viene specificato anzitutto il tipo di giunto in accordo alla seguente tabella:
+Tipo         | Descrizione
+------------ | -----------------
+`continuous` | Un giunto rotoidale che può ruotare indefinitamente lungo un asse
+`revolute`   | Un giunto rotoidale con limiti fisici di rotazione  
+`prismatic`  | Un giunto prismatico che consente la traslazione lungo un asse, specificando i limiti minimo e massimo  
+`planar`     | Un giunto planare che consente la traslazione lungo un piano e la rotazione intorno l'asse normale al piano  
+`floating`   | Un giunto virtuale che consente tutte e sei le traslazioni e le rotazioni nello spazio  
+`fixed`      | Un giunto virtuale che che non consente alcun tipo di movimento tra i corpi
+
+Oltre al tipo, per ogni giunto vengono specificati i due link che questo interconnette, specificando i nomi dei due frame di riferimento attraverso i tag `<parent>` e `<child>`; infine viene specificato il punto di interconnessione fra i due corpi (dove si trova il giunto), espresso mediante la posizione relativa del frame `child` rispetto al frame `parent`, usata per costruire la matrice di rototraslazione per passare da un frame a l'altro.  
+In aggiunta ai file URDF è possibile usare file **Xacro** (_XML Macros_ language) per creare delle macro XML (l'equivalente delle funzioni in altri linguaggi) per creare dei file XML più corti e migliorarne la leggibilità. Tramite `xacro` è possibile automatizzare la creazione di blocchi di codice associati alla modellazione di elementi fisici uguali.
+A titolo d'esempio verrà modellato un robot differential-drive, supponendo che questo sia caratterizzato dalle seguenti proprietà fisiche: il telaio è una scatola squadrata di dimensioni (0.3x0.2x0.03m), le ruote attuate hanno un raggio di 3cm e sono larghe  2cm, la ruota d'ausilio è una ruota sferica (_caster wheel_) anch'essa di raggio 3cm, posizionata per garantire la stabilità del telaio. Il file di modellazione è `smr.urdf.xacro` locato nella cartella `description/urdf/` del package `smr_pkg`.
+```xml
+<?xml version="1.0"?>
+<robot name="smr">
+
+  <link name="base_footprint"/>
+
+  <link name="base_link">
+    <visual>
+      <geometry>
+        <box size="0.3 0.2 0.03"/>
+      </geometry>
+      <material name="avana brown">
+        <color rgba="0.6314 0.4275 0.2157 1"/>
+      </material>
+    </visual>
+  </link>
+
+  <joint name="base_joint" type="fixed">
+    <parent link="base_footprint"/>
+    <child link="base_link" />
+    <origin xyz="0.05 0 0.03" rpy="0 0 0"/>
+  </joint>
+
+  <link name="right_wheel">
+    <visual>
+      <geometry>
+        <cylinder length="0.02" radius="0.03"/>
+      </geometry>
+      <material name="black">
+	<color rgba="0 0 0 1"/>
+      </material>
+    </visual>
+  </link>
+
+  <joint name="right_wheel_joint" type="continuous">
+    <axis xyz="0 0 1"/>
+    <parent link="base_link"/>
+    <child link="right_wheel"/>
+    <origin rpy="-1.5708 0 0" xyz="0.05 -0.11 0"/>
+  </joint>
+
+  <link name="left_wheel">
+    <visual>
+      <geometry>
+        <cylinder length="0.02" radius="0.03"/>
+      </geometry>
+      <material name="black">
+	<color rgba="0 0 0 1"/>
+      </material>
+    </visual>
+  </link>
+
+  <joint name="left_wheel_joint" type="continuous">
+    <axis xyz="0 0 1"/>
+    <parent link="base_link"/>
+    <child link="left_wheel"/>
+    <origin rpy="-1.5708 0 0" xyz="0.05 0.11 0"/>
+  </joint>
+  
+  <link name="caster_wheel">
+    <visual>
+      <geometry>
+        <sphere radius="0.015"/>
+      </geometry>
+      <material name="black">
+	<color rgba="0 0 0 1"/>
+      </material>
+    </visual>
+  </link>
+
+  <joint name="caster_wheel_joint" type="fixed">
+    <axis xyz="0 1 0"/>
+    <parent link="base_link"/>
+    <child link="caster_wheel"/>
+    <origin rpy="0 0 0" xyz="-0.1 0 -0.015"/>
+  </joint>
+  
+</robot>
+```
+È inoltre possibile includere forme più complesse per modellare le geometrie dei corpi, includendo modelli _mesh_ ad alta risoluzione (usando ad esempio file `*.stl` ricavati da un modello CAD 3D); attraverso il tag `<mesh>`  è possibile sostituire le forme base per la geometria del link, specificando il nome del file contenente la _mesh_.  
+Per visualizzare il risultato del modello assemblato (anche man mano che lo si costruisce), risulta molto utile fare ricorso allo strumento di visualizzazione messo a disposizione da ROS: **Rviz**. Per eseguire `rviz` e caricare il modello URDF del robot è possibile configurare un file `*.launch` nel modo seguente:
+```xml
+<launch>
+  <arg name="model" default="$(find smr_pkg)/description/urdf/smr.urdf.xacro"/>
+
+  <param name="robot_description" command="$(find xacro)/xacro.py $(arg model)" />
+  <param name="use_gui" value="true"/>
+
+  <node name="joint_state_publisher" pkg="joint_state_publisher" type="joint_state_publisher" />
+  <node name="robot_state_publisher" pkg="robot_state_publisher" type="state_publisher" />
+  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find urdf_tutorial)/rviz/urdf.rviz" required="true" />
+</launch>
+```
+La prima riga
+```xml
+<arg name="model" default="$(find smr_pkg)/description/urdf/smr.urdf.xacro"/>
+```
+specifica il path del file URDF e lo assegna come _argomento_ alla variabile `model`, per richiamarlo nella riga seguente.
+```xml
+<param name="robot_description" command="$(find xacro)/xacro.py $(arg model)" />
+```
+Per convenzione il modello URDF del robot viene caricato all'interno del _parameter server_ con il nome standard `robot_description`. Tale operazione viene eseguita dall'interprete `xacro` che riceve come parametro il file URDF che deve interpretare.
+Dopo aver caricato il modello è necessario eseguire alcuni nodi per consentire la corretta visualizzazione e movimentazione dei corpi che costituiscono il robot.
+```xml
+<node name="joint_state_publisher" pkg="joint_state_publisher" type="joint_state_publisher" />
+```
+Il nodo `joint_state_publisher` dell'omonimo package pubblica in real-time la posizione si ogni giunto che compone il sisema, utilizzando messaggi di tipo `sensor_msgs/JointState` pubblicati sul topic `joint_states`.
+```xml
+<node name="robot_state_publisher" pkg="robot_state_publisher" type="state_publisher" />
+```
+Un altro nodo, il `robot_state_publisher`, legge ed interpreta il file URDF dal parameter server ed è sottoscritto al topic `/joint_states`; il suo ruolo è quello di combinare le posizioni 1D di ogni giunto per calcolare l'albero delle trasformaioni che consentono di risalire alla posa nello spazio (6D) di ogni link rispetto agli altri: in altre parole, si occupa di risolvere la _cinematica diretta_. Questo albero di trasformazioni viene pubblicato attraverso messsaggi `tf2_msgs/TFMessage` sul topic `/tf `.  
+```xml
+<node name="rviz" pkg="rviz" type="rviz" args="-d $(find urdf_tutorial)/rviz/urdf.rviz" required="true" />
+```
+Infine viene eseguito `rviz` che legge il modello URDF ed è sottoscritto al topic `/tf`, consentendo così la corretta visualizzazione della posa di ogni singolo link del robot.  
+Una volta creato, salvare il file `*.launch` nella cartella `launch/` del package ed eseguire `rviz` digitando in un terminale:
+```bash
+$ roslaunch smr_pkg display_rviz.launch 
+```
+![Differential-drive on rviz](img/rviz_diff_drive.png)
+
+Il modello URDF racchiude le informazioni cinematiche e grafiche del differential-drive, ma non ha conoscenza delle caratteristiche necessarie alla simulazione dinamica del veicolo. Affinché sia possibile effettuare dei test nell'ambiente simulativo **Gazebo**, è necessario introdurre nel file `*.urdf` due ulteriori tag per ciascun link del modello:
+- `<collision>`: simile a `<visual>`, questo tag definisce la forma e le dimensioni di ciascun corpo, per determinare come questo interagisce con gli altri oggetti resenti nell'ambiente simulativo. La eometria di collisione spesso coincide con la geometria grafica, ma, in caso di geometrie mesh, è possibile utilizzare modelli a risoluzione minore o incapsulare la geometria all'interno di forme più semplici (scatole, cilindri, sfere) per diminuire l'onere computazionale della simulazione.
+- `<inertial>`: questo tag definisce la massa e i momenti di inerzia di ciascun link, necessari a simulare correttamente i movimenti dei corpi in accordo alle principali leggi della meccanica classica. Ricavare tali dati per forme non elementari può diventare difficoltoso, spesso si può ricorrere a software specifici (ad esempio _MeshLab_) per ricavare una stima di tali parametri a partire dai file `*.stl`.  
+
+Nell'esempio corrente di modellazione di un semplice differential-drive è possibile introdurre tali informazioni dinamiche ricorrendo alle stesse geometrie usate per la visualizzazione grafica, e, essendo geometrie elementari, utilizzare le ben note formule elementari per calcolare le matrici di inerzia di ciascun link. Si assuma che il peso del telaio del robot abbia una massa di 1Kg, e ciascuna ruota (compresa la ruota sferica) di 0.1Kg. Utilizzando le formule per tali geometrie di base (cuboidi, cilindri e sfere) si ricavano i momenti di inerzia degli assi principali:
+
+![\begin{cases}I_{xx}=\frac{1}{12}m({dy}^2+{dz}^2)\\I_{yy}=\frac{1}{12}m({dx}^2+{dz}^2)\\I_{zz}=\frac{1}{12}m({dx}^2+{dy}^2)\end{cases}](https://render.githubusercontent.com/render/math?math=%5Cbegin%7Bcases%7DI_%7Bxx%7D%3D%5Cfrac%7B1%7D%7B12%7Dm(%7Bdy%7D%5E2%2B%7Bdz%7D%5E2)%5C%5CI_%7Byy%7D%3D%5Cfrac%7B1%7D%7B12%7Dm(%7Bdx%7D%5E2%2B%7Bdz%7D%5E2)%5C%5CI_%7Bzz%7D%3D%5Cfrac%7B1%7D%7B12%7Dm(%7Bdx%7D%5E2%2B%7Bdy%7D%5E2)%5Cend%7Bcases%7D)
+![\begin{cases}I_{xx}=\frac{1}{12}m(3r^2+h^2)\\I_{yy}=\frac{1}{12}m(3r^2+h^2)\\I_{zz}=\frac{1}{12}mr^2\end{cases}](https://render.githubusercontent.com/render/math?math=%5Cbegin%7Bcases%7DI_%7Bxx%7D%3D%5Cfrac%7B1%7D%7B12%7Dm(3r%5E2%2Bh%5E2)%5C%5CI_%7Byy%7D%3D%5Cfrac%7B1%7D%7B12%7Dm(3r%5E2%2Bh%5E2)%5C%5CI_%7Bzz%7D%3D%5Cfrac%7B1%7D%7B12%7Dmr%5E2%5Cend%7Bcases%7D)
+![\begin{cases}I_{xx}=\frac{2}{5}mr^2\\I_{yy}=\frac{2}{5}mr^2\\I_{zz}=\frac{2}{5}mr^2\end{cases}](https://render.githubusercontent.com/render/math?math=%5Cbegin%7Bcases%7DI_%7Bxx%7D%3D%5Cfrac%7B2%7D%7B5%7Dmr%5E2%5C%5CI_%7Byy%7D%3D%5Cfrac%7B2%7D%7B5%7Dmr%5E2%5C%5CI_%7Bzz%7D%3D%5Cfrac%7B2%7D%7B5%7Dmr%5E2%5Cend%7Bcases%7D)
+ 
+Il file  `smr.urdf.xacro` diventa
+```xml
+<?xml version="1.0"?>
+<robot name="smr">
+
+  <link name="base_footprint"/>
+
+  <link name="base_link">
+    <visual>
+      <geometry>
+        <box size="0.3 0.2 0.03"/>
+      </geometry>
+      <material name="avana brown">
+	<color rgba="0.6314 0.4275 0.2157 1"/>
+      </material>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="0.3 0.2 0.03"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="1.0"/>
+      <inertia ixx="3.408e-3"
+               ixy="0"       iyy="7.575e-3"
+               ixz="0"       iyz="0"       izz="1.083e-2"/>
+    </inertial>
+  </link>
+
+  <joint name="base_joint" type="fixed">
+    <parent link="base_footprint"/>
+    <child link="base_link" />
+    <origin xyz="0 0 0.03" rpy="0 0 0"/>
+  </joint>
+
+  <link name="right_wheel">
+    <visual>
+      <geometry>
+        <cylinder length="0.02" radius="0.03"/>
+      </geometry>
+      <material name="black">
+	<color rgba="0 0 0 1"/>
+      </material>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder length="0.02" radius="0.03"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0.1"/>
+      <inertia ixx="2.583e-5"
+               ixy="0"       iyy="2.583e-5"
+               ixz="0"       iyz="0"       izz="7.5e-6"/>
+    </inertial>
+  </link>
+
+  <joint name="right_wheel_joint" type="continuous">
+    <axis xyz="0 0 1"/>
+    <parent link="base_link"/>
+    <child link="right_wheel"/>
+    <origin rpy="-1.5708 0 0" xyz="0.05 -0.11 0"/>
+  </joint>
+
+  <link name="left_wheel">
+    <visual>
+      <geometry>
+        <cylinder length="0.02" radius="0.03"/>
+      </geometry>
+      <material name="black">
+	<color rgba="0 0 0 1"/>
+      </material>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder length="0.02" radius="0.03"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0.1"/>
+      <inertia ixx="2.583e-5"
+               ixy="0"       iyy="2.583e-5"
+               ixz="0"       iyz="0"       izz="7.5e-6"/>
+    </inertial>
+  </link>
+
+  <joint name="left_wheel_joint" type="continuous">
+    <axis xyz="0 0 1"/>
+    <parent link="base_link"/>
+    <child link="left_wheel"/>
+    <origin rpy="-1.5708 0 0" xyz="0.05 0.11 0"/>
+  </joint>
+  
+  <link name="caster_wheel">
+    <visual>
+      <geometry>
+        <sphere radius="0.015"/>
+      </geometry>
+      <material name="black">
+	<color rgba="0 0 0 1"/>
+      </material>
+    </visual>
+    <collision>
+      <geometry>
+        <sphere radius="0.015"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0.1"/>
+      <inertia ixx="9e-6"
+               ixy="0"   iyy="9e-6"
+               ixz="0"   iyz="0"   izz="9e-6"/>
+    </inertial>
+  </link>
+
+  <joint name="caster_wheel_joint" type="fixed">
+    <axis xyz="0 1 0"/>
+    <parent link="base_link"/>
+    <child link="caster_wheel"/>
+    <origin rpy="0 0 0" xyz="-0.1 0 -0.015"/>
+  </joint>
+  
+</robot>
+```
+
+È possibile inoltre definire per ciascun link ulteriori parametri intrinseci del corpo:
+
+*Name* | *Type* | *Description*
+-------|--------|--------------
+```material``` | value | Material of visual element
+```gravity``` | bool | Use gravity
+```dampingFactor``` | double | Exponential velocity decay of the link velocity - takes the value and multiplies the previous link velocity by (1-dampingFactor)
+```maxVel``` | double | maximum contact correction velocity truncation term
+```minDepth``` | double | minimum allowable depth before contact correction impulse is applied
+```mu1``` , ```mu2``` | double |  Friction coefficients μ for the principal contact directions along the contact surface as defined by the Open Dynamics Engine (ODE) (see parameter descriptions in ODE's user guide)
+```fdir1``` | string | 3-tuple specifying direction of mu1 in the collision local reference frame
+```kp```, ```kd``` | double | Contact stiffness k_p and damping k_d for rigid body contacts as defined by ODE (ODE uses erp and cfm but there is a mapping between erp/cfm and stiffness/damping)
+```selfCollide``` | bool | If true, the link can collide with other links in the model
+```maxContacts``` | int | Maximum number of contacts allowed between two entities. This value overrides the max_contacts element defined in physics
+```laserRetro``` | double | intensity value returned by laser sensor
+
+## Simulazione
+per simulare il robot è necessario introdurre un meccanismo di attuazione dei vari giunti e ricevere le informazioni di posizioni da ciascuno di essi per poter calcolare la posizione corrente del robot. È necessario dunque che il modello sia correlato di un'architettura software che esporti un'interfaccia di topic del tipo `cmd_vel/odom`. Su un robot reale tale interfaccia viene realizzata da una serie di nodi che si interfacciano direttamente con l'hardware del veicolo fungendo da driver; come nell'esempio dell'architettura proposta, una serie di nodi implementati su Raspberry sarebbero in grado di esportare tale interfaccia. In ambiente simulativo vengono usati dei **Gazebo plugins** per simulare sensori, attuatori o addirittura robot completi (i plugin sono librerie precompilate, alcune di esse possono essere ritrovate nella cartella di installazione di ROS: `/opt/ros/melodic/lib`). Tali plugin simulano attuatori e sensori e l'interfacciamento con essi, fungendo da driver che esportano direttamente i topic ROS necessari al loro utilizzo. Il _differential-drive plugin_ esporta una interfaccia `cmd_vel/odom` che consnte il controllo di un differential-drive mediante messaggi di tipo `Twist` sul topic `/cmd_vel`, trasformando i comandi di velocità del robot in velocità di attuazione per le due ruote; al contempo esporta le informazioni sulla posa corrente del robot sul topic `/odom`.  
+Per aggiungere un plugin è necessario aggiungere alcuni tag nel file `smr.urdf.xacro`
+```xml
+<gazebo>
+  <plugin name="differential_drive_controller" filename="libgazebo_ros_diff_drive.so">
+    <commandTopic>cmd_vel</commandTopic>
+    <odometryTopic>odom</odometryTopic>
+    <leftJoint>left_wheel_joint</leftJoint>
+    <rightJoint>right_wheel_joint</rightJoint>
+    <robotBaseFrame>base_link</robotBaseFrame>
+    <wheelSeparation>0.2</wheelSeparation>
+    <wheelDiameter>0.06</wheelDiameter>
+    <wheelTorque>10</wheelTorque>
+    <publishWheelJointState>true</publishWheelJointState>
+  </plugin>
+</gazebo>
+```
+Per prima cosa è necessario aprire un tag `<gazebo>` all'interno del tag `<robot>` del modello, successivamente
+```xml
+<plugin name="differential_drive_controller" filename="libgazebo_ros_diff_drive.so">
+```
+viene caricato il plugin associato alla libreria `libgazebo_ros_diff_drive.so` per la simulazione dell'intero robot. Tale libreria richiede la specifica di alcuni campi per la creazione del robot virtuale, tra cui
+```xml
+<commandTopic>cmd_vel</commandTopic>
+<odometryTopic>odom</odometryTopic>
+```
+per specificare i nodi dei topic sul quale ricevere i comandi di velocità ed esportare l'odometria del robot. I frame di riferimento per il centro di massa del robot e le due ruote
+```xml
+<leftJoint>left_wheel_joint</leftJoint>
+<rightJoint>right_wheel_joint</rightJoint>
+<robotBaseFrame>base_link</robotBaseFrame>
+```
+e i parametri fisici necessari ai calcoli cinematici
+```xml
+<wheelSeparation>0.2</wheelSeparation>
+<wheelDiameter>0.06</wheelDiameter>
+<wheelTorque>10</wheelTorque>
+```
+Infine, tramite 
+```xml
+<publishWheelJointState>true</publishWheelJointState>
+```
+si abilita il plugin a publicare i messaggi sul topic `joint_states/`, per la posizione corrente delle ruote.  
+Per caricare il modello del robot in Gazebo si possono seguire differenti strade, di seguito si riporta l'avvio della simulazione attraverso file `*.launch`, il quale avrà il compito si caricare il modello URDF del robot sul parameter server, eseguire Gazebo in un mondo virtuale di simulazione (inizialmente un _empty world_), infine richiamare un servizio per deporre (_spawn_) un'istanza del robot in Gazebo interpretando il file di descrizione URDF.
+```xml
+<launch>
+  <!-- Load the URDF model into the parameter server -->
+  <param name="robot_description" textfile="$(find smr_pkg)/description/urdf/smr.urdf.xacro" />
+  
+  <!-- Start Gazebo with an empty world -->
+  <include file="$(find gazebo_ros)/launch/empty_world.launch"/>
+  
+  <!-- Spawn a smr in Gazebo, taking the description from the
+  parameter server -->
+  <node name="spawn_urdf" pkg="gazebo_ros" type="spawn_model"
+  args="-param robot_description -urdf -model smr" />
+</launch>
+```
+Salvare il file `gazebo_sim.launch` nella cartella `launch/` ed eseguire in un terminale
+```bash
+$ roslaunch smr_pkg gazebo_sim.launch
+```
+A questo punto l'ambiente di simulazione Gazebo verrà aperto e un'istanza del robot sarà posizionata nell'origine del mondo virtuale.  
+Il modo più semplice per verificare che il robot funzioni correttamente con il plugin `diff_drive` è eseguire il nodo `teleop_node` e provare a teleoperare il robot nel mondo virtuale:
+```bash
+$ roslaunch turtlebot3_teleop turtlebot3_teleop.launch
+```
+![Differential-drive on Gazebo](img/gaz_diff_drive.png)
+
+>##### :children_crossing: GAZEBO PROBLEM
+> Potrebbe capitare che all'avvio di Gazebo venga sollevato l'errore:
+> > [Err] [REST.cc:205] Error in REST request
+> > libcurl: (51) SSL: no alternative certificate subject name matches target host name 'api.ignitionfuel.org'  
+>
+> Tale errore è dovuto all'aggiornamento del repository a cui Gazebo scarica i propri modelli. Per risolvere il problema basta modificare il file `~/.ignition/fuel/config.yaml` sostituendo la stringa `api.ignitionfuel.org` con il nuovo URL `api.ignitionrobotics.org`.
+
+A un primo sguardo Gazebo e Rviz possono sembrare molto simili: entrambi mettono a disposizione una visualizzazione 3D del robot e permettono di visualizzare il robot nel suo ambiente virtuale. Tuttavia i due software giocano ruoli totalmente diversi: Gazebo simula effettivamente il robot all'interno di un mondo virtuale, mentre Rviz permette di visualizzare il robot e le sue conoscenze sull'ambiente circostante (processamento delle informazioni provenienti dai sensori). Gazebo è dunque un sostituto del robot reale in un ambiente naturale, ed esegue la simulazione dell'evoluzione del sistema implementando tutte le leggi della fisica e gli effetti delle forze che si generano dall'interazione del robot con gli altri elementi virtuali e con l'ambiente stesso, inoltre sono presenti plugin che permettono la generazione di dati sintetici a partire da modelli di sensori virtuali. Alla luce di ciò, Gazebo implementa diverse tipologie di plugin per simulare diversi aspetti del mondo reale: vi sono plugin che aggiungono al mondo virtuale specifiche caratteristiche fisiche (aereodinamica, idrodinamica, ecc), altri che modellano e permettono di controllare oggetti presenti nell'ambiente simulativo (robot o altri oggetti), altri, ancora, che permettono di simulare l'acquisizione di dati da parte di sensori, implementando gli effetti fisici su cui sono basati gli elementi sensibili (camere, laser, GPS, IMU, ecc).  
+Dall'altro lato, Rviz permette di visualizzare lo _stato_ del robot e le sue conoscenze dell'ambiente circostante, e che sia il mondo reale, e che sia l'ambiente simulativo. Le informazioni provenienti dai sensori a bordo costituiscono le _conoscenze_ del robot, queste sono elaborate opportunamente e rappresentano cosa il robot _pensa_ del mondo circostante (a paritre dalle informazioni di odometria e da quelle ottenute a partire da un sensore laser, ad esempio, il robot è in grado di costruire una mappa dell'ambiente e sapere dove si trova in ogni momento).  
+Dunque Rviz può essere usato in sinergia con Gazebo per visualizzare le percezioni del robot nell'ambiente simulato, in vista di essere trasferito, successivamente nel mondo reale.  
+Per visualizzare correttamente il robot, Rviz richiede di conoscere la struttura dell'intero robot e il suo stato corrente, in termini delle posizioni di tutte le sue variabili di giunto. È necessario dunque pubblicare tali informazioni sul topic `/joint_states` utilizzando il plugin `joint states publisher plugin` per publicare lo stato dei giunti non pubblicati gia da altri plugin (nel caso del differential-drive, il `diff-drive` pluin non pubblica le informazioni di giunto della ruota ausiliaria).
+```xml
+<plugin name="joint_state_publisher"
+filename="libgazebo_ros_joint_state_publisher.so">
+<jointName>caster_wheel_joint</jointName>
+</plugin>
+```
+È possibile inoltre aggiungere l'esecuzione contestuale del nodo `robot_state_publisher` aggiungendo nel file `*.launch` le seguenti linee di codice:
+```xml
+  <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher"/>
+```
+A questo punto è possibile eseguire l'ambiente di lavoro virtuale messo a disposizione da Gazebo:
+```bash
+$ gazebo_sim.launch
+```
+e, in un nuovo terminale, lanciare Rviz:
+```bash
+$ rviz
+```
+Una volta lanciato Rviz, sarà necessario modificare alcune impostazioni di visualizzazione nel pannello laterale:
+- In `Displays`→ `Global Options`, impostare `fixed_frame` su `odom`; questo permette di visualizzare il robt muoversi intorno al punto iniziale (origine dell'origine dell'odometria).
+- In ```Displays```, utilizzare il bottone `Add` per inserire un nuovo `Robot Model`; questo consente a Rviz di leggere il file `*.urdf.xacro` dal parameter server e visualizzarlo in 3D.
+
+![Run differential-drive in Rviz](img/rviz_diff_drive2.png)
+
+È possibile verificare che tutto stia funzionando correttamente andando a utilizzare i comandi base di ROS, come  `rostopic echo` seguito dal nome del topic`/tf`, per assicurarsi che tutte le trasformazioni tra i corpi siano pubblicate correttamente, o `/joints_states` per vedere visualizzate le informazioni di giunto.  
+
+### Mondo Virtuale Personalizzato
+Gazebo permette di modificare e personalizzare il mondo virtuale entro cui il robot si potrà muovere. Oltre a vere e proprie ambientazioni del mondo reale, è possibile personalizzare il mondo base inserendo forme di base (quale cubi, cilindri, sfere, ecc) o oggetti più sofisticati già presenti nelle librerie di sistema (i modelli sono salvati su un server remoto, è necessario, al primo utilizzo, scaricare in locale i modelli che si intendono utlizzare).  
+I modelli degli oggetti possono essere trascinati nello spazio vuoto e il mondo può essere salvato in un file`*.world` nella cartella `worlds/` del package. Per caricare un mondo personalizzato precedentemente salvato è necessario specificare come argomento `world_name`, nel file `*.launch`, il percorso e il file `*.world` 
+```xml
+<launch>
+  <!-- Load the URDF model into the parameter server -->
+  <param name="robot_description" command="$(find xacro)/xacro $(find smr_pkg)/description/urdf/smr.urdf.xacro" />
+  
+  <!-- Start Gazebo with a custom world -->
+  <include file="$(find gazebo_ros)/launch/empty_world.launch">
+    <arg name="world_name" value="$(find smr_pkg)/worlds/test.world"/>
+    <arg name="paused" value="false"/>
+    <arg name="use_sim_time" value="true"/>
+    <arg name="gui" value="true"/>
+    <arg name="headless" value="false"/>
+    <arg name="debug" value="false"/>
+  </include>  
+
+  <!-- Spawn a smr in Gazebo, taking the description from the parameter server -->
+  <node name="spawn_urdf" pkg="gazebo_ros" type="spawn_model" args="-param robot_description -urdf -model smr" />
+
+  <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher"/>
+
+</launch>
+```
+
+## Sensori Virtuali
+Come già accennato è possibile aggiungere dei sensori virtuali al robot attraverso l'uso dei plugin di Gazebo. A titolo d'esempio è possibile provare ad equipaggiare il differential-drive con un **laser range-finders**. Sensori laser di tale famiglia consentono di registrare accurate informazioni sull'ambiente circostante, sfruttando il tempo di volo di un fascio luminoso per calcolare la distanza dagli oggetti circostanti.  
+Per includere il sensore nel modello del robot è necessario aggiungere un link URDF che rappresenterà il sensore fisico, questo sarà collegato al resto della struttura per mezzo di un giunto.Si supponga di modellare il sensore laser con un cilindro montato sulla parte anteriore del telaio:
+```xml
+<link name="laser_link">
+  <visual>
+    <geometry>
+      <cylinder length="0.04" radius="0.05"/>
+    </geometry>
+    <material name="gray">
+      <color rgba="0.1 0.1 0.2 1"/>
+    </material>
+  </visual>
+  <collision>
+    <geometry>
+      <cylinder length="0.04" radius="0.05"/>
+    </geometry>
+  </collision>
+  <inertial>
+    <mass value="0.4"/>
+    <inertia ixx="3.03e-4"
+             ixy="0"       iyy="3.03e-4"
+             ixz="0"       iyz="0"       izz="8.3e-5"/>
+  </inertial>
+</link>
+
+<joint name="laser_joint" type="fixed">
+  <axis xyz="0 0 0"/>
+  <parent link="base_link"/>
+  <child link="laser_link"/>
+  <origin rpy="0 0 0" xyz="0.05 0 0.035"/>
+</joint>
+```
+Successivamente è necessario specificare a Gazebo che a tale link è associato un sensore; ciò viene fatto attraverso il tag `<sensor>` per specificare il tipo di sensore associato e i parametri intrinseci del sensore:
+```xml
+<gazebo reference="laser_link">
+  <sensor type="ray" name="laser_sensor">
+    <pose>0 0 0 0 0 0</pose>
+    <visualize>false</visualize>
+    <update_rate>40</update_rate>
+    <ray>
+      <scan>
+        <horizontal>
+          <samples>720</samples>
+          <resolution>1</resolution>
+          <min_angle>-1.570796</min_angle>
+          <max_angle>1.570796</max_angle>
+        </horizontal>
+      </scan>
+      <range>
+        <min>0.10</min>
+        <max>10.0</max>
+        <resolution>0.015</resolution>
+      </range>
+      <noise>
+        <type>gaussian</type>
+        <mean>0.0</mean>
+        <stddev>0.01</stddev>
+      </noise>
+    </ray>
+    <plugin name="laser_sensor" filename="libgazebo_ros_laser.so">
+      <topicName>scan</topicName>
+      <frameName>laser_link</frameName>
+    </plugin>
+  </sensor>
+</gazebo>
+```
+I punti chiave sono riassunti come segue:
+- Creazione di un sensore di tipo `ray` ad agganciarlo al `laser_link`.
+- Configurare i parametri base del sensore in accordo alle specifiche di accuratezza del sensore reale che si intende simulare; nell'esempio la frequenza di acquisizione dati è pari a 40 Hz, con uno spettro di 720 campioni su un campo di visione di 180 gradi, risoluzione di 1 un grado e accuratezza di 0.1m fino a 10m di distanza massima. È inoltre possibile aggiungere un tag `<noise>` con le opportune proprietà di disturbo, in modo da simulare un sensore reale.
+- Infine, agganciare il plugin implementato nella libreria `libgazebo_ros_laser.so`, il quale pubblica le informazioni acquisite dal sensore virtuale attraverso  messaggi di tipo `sensor_msgs/LaserScan` sul topic `/scan`.  
+Salvando tale modello nel file `smr_equip.urdf.xacro` è possibile lanciare una nuova simulazione all'interno di un ambiente virtule personalizzato in cui è presente un cilindro difronte al robot.
+```xml
+<launch>
+  <!-- Load the URDF model into the parameter server -->
+  <param name="robot_description" command="$(find xacro)/xacro $(find smr_pkg)/description/urdf/smr_equip.urdf.xacro" />
+  
+  <!-- Start Gazebo with a custom world -->
+  <include file="$(find gazebo_ros)/launch/empty_world.launch">
+    <arg name="world_name" value="$(find smr_pkg)/worlds/test.world"/>
+    <arg name="paused" value="false"/>
+    <arg name="use_sim_time" value="true"/>
+    <arg name="gui" value="true"/>
+    <arg name="headless" value="false"/>
+    <arg name="debug" value="false"/>
+  </include>  
+
+  <!-- Spawn a smr in Gazebo, taking the description from the parameter server -->
+  <node name="spawn_urdf" pkg="gazebo_ros" type="spawn_model" args="-param robot_description -urdf -model smr" />
+
+  <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher"/>
+
+</launch>
+```
+Eseguire Gazebo con il robot nel nuovo ambiente personalizzato:
+```bash
+$ roslaunch smr_pkg gazebo_custom_sim.launch
+```
+successivamente avviare un'istanza di Rviz
+```bash
+$ rviz
+```
+ed eseguire i seguenti passi:
+- In `Displays`→`Global Options`, impostare `odom` come `fixed_frame`.
+- In `Displays`, usare il bottone `Add` per inserire come `Robot Model` il modello contenuto nel parameter server.
+- In `Displays`, utilizzare il bottone `Add` per abilitare la visualizzazione grafica di informazioni di tipo `LaserScan` provenienti dal topic `/scan`.
+- Eseguire il nodo ```turtlebot3_teleop``` e provare a muoversi intorno al cilindro.
+
+![Obstacle detection in Gazebo](img/gaz_obstacle.png)
+![Obstacle detection in Rviz](img/rviz_obstacle.png)
