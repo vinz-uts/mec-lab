@@ -177,3 +177,173 @@ free_thresh: 0.196
 È possibile usare il package `gmapping` anche con il robot personalizzato costruito nelle lezioni precedenti, per ricostruire la mappa dell'ambiente personalizzato che si era creato.
 
 ![Building a map with own robot](img/smr_map.png)
+
+### Navigazione Autonoma
+Lo scopo di un sistema di navigazione autonomo, chiamato anche **navigation stack** (o _nav stack_) nell'ecosistema ROS, è quello di integrare le informazioni provenienti dai vari sensori, dalla mappa dell'ambiente e dagli altri sistemi di localizzazione (ad esempio l'odometria), per pianificare un percorso che porti il robot dalla posizione iniziale ad un traguardo prefissato; inoltre è responsabile della gestione dei segnali di riferimento da passare al robot, in modo che questo possa seguire il percorso pianificato al meglio delle proprie abilità, il tutto evitando anche eventuali ostacoli imprevisti presenti lungo il tragitto.  
+La figura seguente mostra le principali relazioni che intercorrono tra le entità cardine del _nav stack_ di ROS.
+
+![ROS Navigation Stack](img/nav_stack.png)
+
+Ad alto livello, il processo di lavoro del _nav stack_ può essere riassunto dalle seguenti fasi:
+1. Un obiettivo sulla mappa viene inviato al _nav stack_. Questo è fatto attraverso un'azione ROS che invia un goal del tipo `MoveBaseGoal`, il quale specifica la posa obiettivo (posizione + orientamento) in termini di coordinate rispetto ad un sistema di riferimento preimpostato (in genere quello solidale alla mappa).
+2. Il _nav stack_ per mezzo del **global planner** utilizza un algoritmo di _path-planning_ che pianifica, in base alle informazioni della mappa, il miglior percorso per raggiungere il goal a partire dalla posa corrente.
+3. Il tracciato viene inviato al **local planner**, il quale cerca di guidare il robot lungo il percorso. È compito del _local planner_ utilizzare le informazioni provenienti dai sensori al fine di evitare eventuali ostacoli non precedentemente mappati che potrebbero trovarsi lungo la strada del veicolo. Qualora il _local planner_ non fosse in grado di superare un ostacolo e dovesse rimanere bloccato, potrà essere inviata una nuova richiesta di ricalcolo del percorso al _global planner_.
+4. Quando il robot si trova in un certo intorno di tolleranza dal goal, l'azione termina e il task di movimento si ritiene terminato con successo.
+
+Esempi di algoritmi di _path planning_ sono i seguenti:
+- Algoritmo dei cammini minimi di Dijkstra
+- Algoritmo di ricerca dei cammini A*
+- Metodo dei campi di potenziale artificiale
+
+Gli algoritmi di pianificazione possono essere basati ad esempio sulle mappe di occupazione o su grafi, o su entrambi. I metodi basati su _occupancy grid_ dividono l'area in celle (come i pixel di un'immagine) e assegnano ad ognuna di esse un peso che può essere binario (libera o occupata) o intero (grado di occupazione: prossimità ad un ostacolo). Dopo tale fase preliminare, una delle celle viene marcata come traguardo mentre un'altra come stato iniziale (posizione attuale del robot). Gli algoritmi di pianificazione hanno come scopo quello di individuare un numero di celle libere contigue che conducano il robot dalla sua posizione attuale al goal finale. La risoluzione di tale problema può essere ottenuta utilizzando algoritmi di ricerca basati su grafi che modellano la mappa di occupazione precedentemente costruita: due celle contigue sono connesse per mezzo di un arco pesato che rappresenta la difficoltà di transizione dall'una all'altra  
+Il nodo `move_base` è l'entità principale del sistema di navigazione di ROS, questo ha l'onere di costruire una _cost map_: una mappa dei costi in cui a ogni cella viene associato un peso che rappresenta la distanza di questa dagli ostacoli, in cui un valore del peso maggiore corrisponde alla maggior vicinanza dall'ostacolo. Il nodo `move_base` utilizza due _cost map_: una locale, per stabilire i comandi di riferimento da dare al robot, e una globale per le traiettorie a lungo raggio. Entrame le _cost map_ sono disponibili su topic: `/move_base/global_costmap/costmap`, `/move_base/local_costmap/costmap`, ed ambedue sono messaggi di tipo `nav_msgs/OccupancyGrid`.
+
+![Example of a costmap](img/costmap.png)
+
+I parametri utilizzati per costruire le _cost map_ sono conservati all'interno di appositi file `*.yaml`. Un file contiene i parametri comuni sia per la mappa locale che per quella globale, altri due sono creati per i parametri indipendenti delle due mappe.    
+Prendendo in esame il TurtleBot 3 Waffle Pi, i parametri comuni sono specificati nel file `costmap_common_params_waffle_pi.yaml`:
+
+```yaml
+obstacle_range: 3.0
+raytrace_range: 3.5
+
+footprint: [[-0.205, -0.155], [-0.205, 0.155], [0.077, 0.155], [0.077, -0.155]]
+
+inflation_radius: 1.0
+cost_scaling_factor: 3.0
+
+map_type: costmap
+observation_sources: scan
+scan: {sensor_frame: base_scan, data_type: LaserScan, topic: scan, marking: true, clearing: true}
+```
+Una spiegazione esaustiva di tutti i parametri presenti può essere trovata nella documentazione ufficiale presente sul sito http://wiki.ros.org/costmap_2d, di seguito se ne riporta una breve presentazione dei principali: 
+```
+obstacle_range: 3.0
+```
+rappresenta la massima distanza in metri a cui inserire un ostacolo all'interno della mappa, gli ostacoli al difuori di tale range non vengono presi in considerazione nel processo di pianificazione.
+```
+raytrace_range: 3.5
+```
+Questo parameto definisce la distanza limite dopo la quale si può considerare lo spazio totalmente libero.
+```
+footprint: [[-0.205, -0.155], [-0.205, 0.155], [0.077, 0.155], [0.077, -0.155]]
+```
+Definisce la forma della proiezione del robot sul piano _xy_: questo viene modellato dall'insieme dei vertici che rappresentano il poligono che lo racchiude; tale contorno è usato per calcolare eventuali collisioni con gli oggetti presenti nella mappa.
+```
+inflation_radius: 1.0
+cost_scaling_factor: 3.0
+```
+Sono parametri utilizzati per la propagazione del costo a partire da una cella occupata verso le altre. Il costo decresce in maniera omogenea con la distanza.
+```
+map_type: costmap
+```
+Specifica che la mappa utilizzata è in due dimensioni.
+```
+observation_sources: scan
+scan: {sensor_frame: base_scan, data_type: LaserScan, topic: scan, marking: true, clearing: true}
+```
+Definisce il tipo di sensori utilizzati per acquisire le informazioni dall'ambiente circostante e le loro proprietà:
+- _sensor_frame_ - sistema di riferimento legato al sensore;
+- _data_type_ - tipo di messagio pubblicato dal sensore;
+- _topic_ - nome del topic sul quale vengono pubblicati i dati;
+- _marking_ - settato a `true` se il sensore può essere utilizzato per rilevare la presenza di ostacoli;
+- _clearing_ - settato a `true` se il sensore può essere utilizzato per rilevare spazio libero difronte a lui.
+
+Per costruire la _global costmap_ sono utilizzati i seguenti parametri contenuti nel file `global_costmap_params.yaml`:
+```yaml
+global_costmap:
+  global_frame: map
+  robot_base_frame: base_footprint
+
+  update_frequency: 10.0
+  publish_frequency: 10.0
+  transform_tolerance: 0.5
+
+  static_map: true
+```
+Analizzando le singole linee:
+```
+global_frame: map
+robot_base_frame: base_footprint
+```
+i quali definiscono i sistemi di riferimento legati alla mappa e al robot.
+```
+update_frequency: 10.0
+publish_frequency: 10.0
+```
+Questi parametri definiscono ogni quanto tempo la _cost map_ deve essere ricalcolata e a ogni quanto viene pubblicata sul relativo topic.
+```
+transform_tolerance: 0.5
+```
+Definisce la massima latenza tollerabile (in secondi) nella pubblicazione delle trasformazioni, se il _tf tree_ non è aggiornato entro il tempo massimo il _navigation stack_ arresta il robot.
+```
+static_map: true
+```
+Specifica che la mappa non varia nel tempo.  
+Analogamente i parametri necessari alla costruzione della _local costmap_ sono definiti nel file `local_costmap_params.yaml`:
+```yaml
+local_costmap:
+  global_frame: odom
+  robot_base_frame: base_footprint
+
+  update_frequency: 10.0
+  publish_frequency: 10.0
+  transform_tolerance: 0.5  
+
+  static_map: false  
+  rolling_window: true
+  width: 3
+  height: 3
+  resolution: 0.05
+```
+I quali hanno lo stesso significato dei precedenti, ma valori diversi. Sono inoltre specificati dei parametri aggiuntivi :
+```
+rolling_window: true
+```
+per indicare che la _local costmap_ utilizza una finestra a scorrimento: il robot rimane sempre al centro di tale finestra e vengono scartate tutte le informazioni inerenti a punti al di fuori della mappa, le cui dimensioni sono specificate dai parametri seguenti:
+```
+width: 3
+height: 3
+resolution: 0.05
+```
+Nei file `move_base_params.yaml` e `dwa_local_planner_params_waffle_pi.yaml` pososno essere trovati i parametri utilizzati dagli algoritm di pianificazione della traiettoria e di generazione dei riferimenti di velocità, di seguito si riportano alcuni
+```yaml
+# The velocity when robot is moving in a straight line
+  max_vel_trans:  0.26
+  min_vel_trans:  0.13
+
+  max_vel_theta: 1.82
+  min_vel_theta: 0.9
+
+  acc_lim_x: 2.5
+  acc_lim_y: 0.0
+  acc_lim_theta: 3.2 
+
+# Goal Tolerance Parametes
+  xy_goal_tolerance: 0.05
+  yaw_goal_tolerance: 0.17
+```
+Il nodo `move_base` può essere eseguito insieme ai suoi parametri attraverso il file `*.launch` presente nel package `turtlebot3_navigation`.
+Modificare la posizione iniziale nel file `amcl.launch`, impostando le coordinate corrette utilizzate per posizionare il modello del robot su Gazebo
+```xml
+<arg name="initial_pose_x" default="-2.0"/>
+<arg name="initial_pose_y" default="-0.5"/> 
+```
+dopodiché eseguire l'ambiente di simulazione digitando
+```
+$ roslaunch tutlebot3_navigation turtlebot3_localization.launch
+```
+In un nuovo terminale eseguire il nodo `move_base`
+```
+$ roslaunch tutlebot3_navigation move_base.launch
+```
+Su Rviz utilizzare il bottone "Add" per aggiungere nella lista laterale un oggetto di tipo _Map_ per visualizzare la _local costmap_, un oggetto _Pose_ per visualizzare il pnto di arrivo desiderato, pubblicato sul topic `/move_base_simple/goal`, e un oggetto _Path_per mostrare le traiettoria desiderata calcolata dal _global planner_.
+
+![Starting autonomous navigation](img/move_base_01.png)
+
+Utilizzando il pulsante "2D Nav Goal" in Rviz, è possibile pubblicare un goal per il robot e visualizzare il percorso calcolato. Durante la simulazione è possibile pubblicare un nuovo goal in qualsiasi momento cancellando il target precedente. È interessante notare come il processo di localizzazione migliori via via che il robot si muove e acquisisce dati dall'ambiente circostante confrontandoli con la mappa.
+
+![Autonomous navigation](img/move_base_02.png)
+
+> #### :warning: CONFLITTI DI COMANDI
+> Qualora si volesse migliorare la bontà della stima della posizione del robot prima che questo compia dei movimenti in autonomia, è possibile teleguidare il robot all'interno del ambiente affinché l'algoritmo di localizzazione converga alla posizione attuale del robot. Prima di commutare in modalità autonoma, assicurarsi però che il nodo `turtlebot3_teleop_key` venga arrestato (shutdown) onde evitare potenziali conflitti dei comandi di velocità pubblicati sul topic `/cmd_vel`.
