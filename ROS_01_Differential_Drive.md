@@ -700,7 +700,7 @@ Per aggiungere un plugin è necessario aggiungere alcuni tag nel file `smr.urdf.
     <odometryTopic>odom</odometryTopic>
     <leftJoint>left_wheel_joint</leftJoint>
     <rightJoint>right_wheel_joint</rightJoint>
-    <robotBaseFrame>base_link</robotBaseFrame>
+    <robotBaseFrame>base_footprint</robotBaseFrame>
     <wheelSeparation>0.2</wheelSeparation>
     <wheelDiameter>0.06</wheelDiameter>
     <wheelTorque>10</wheelTorque>
@@ -721,7 +721,7 @@ per specificare i nodi dei topic sul quale ricevere i comandi di velocità ed es
 ```xml
 <leftJoint>left_wheel_joint</leftJoint>
 <rightJoint>right_wheel_joint</rightJoint>
-<robotBaseFrame>base_link</robotBaseFrame>
+<robotBaseFrame>base_footprint</robotBaseFrame>
 ```
 e i parametri fisici necessari ai calcoli cinematici
 ```xml
